@@ -1,0 +1,162 @@
+name: Reindex Elasticsearch
+
+on:
+  workflow_dispatch:
+    inputs:
+      EXECUTION_STAGE:
+        description: >-
+          Select execution stage: run all stages sequentially with manual approvals, or execute a
+          single specific stage
+        type: choice
+        required: true
+        options:
+          - 'All Stages (Sequential Pipeline)'
+          - 'Step 1: AddReindexSubscriber'
+          - 'Step 2: AddReindexTrigger'
+          - 'Step 3: UpdateReaderAlias'
+      TARGET_SITE:
+        description: >-
+          For test environment (release/t1 branch), select the target region: aue1 for us-east-1,
+          auw2 for us-west-2. For dev and prod environments the target region is selected
+          automatically depending on the branch used for workflow execution
+        type: choice
+        required: false
+        default: ''
+        options:
+          - ''
+          - 'aue1'
+          - 'auw2'
+      CONFIG_MAP:
+        description: >-
+          Config map used for matrix
+        type: choice
+        required: true
+        options:
+          - '[ { "environment": "d1", "site": "aue1" } ]'
+          - '[ { "environment": "t1", "site": "auw2" }, { "environment": "t1", "site": "aue1" } ]'
+
+permissions: {}
+
+jobs:
+  validate-config:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      filtered_config: ${{ steps.filter-matrix.outputs.FILTERED_CONFIG }}
+    steps:
+      - name: Filter Matrix Configuration
+        id: filter-matrix
+        env:
+          CONFIG: ${{ inputs.CONFIG_MAP }}
+          TARGET_SITE: ${{ inputs.TARGET_SITE }}
+        run: |
+          echo "Original config: '$CONFIG'"
+          echo "Target site: '$TARGET_SITE'"
+
+          # Parse the configuration
+          FILTERED_CONFIG=$(echo "$CONFIG" | jq --arg site "$TARGET_SITE" '
+            if length > 1 then
+              if $site == "" then
+                error("Multiple environments found but no target site specified. Please select aue1 or auw2.")
+              else
+                map(select(.site == $site))
+              end
+            else
+              .
+            end
+          ')
+
+          if [ "$(echo "$FILTERED_CONFIG" | jq 'length')" -eq 0 ]; then
+            echo "ERROR: No matching configuration found for target site: $TARGET_SITE"
+            exit 1
+          fi
+
+          # Debug output of the config map
+          jq . <<<"$FILTERED_CONFIG"
+
+          echo "FILTERED_CONFIG=$(jq . --compact-output <<<"$FILTERED_CONFIG")" | tee -a "$GITHUB_OUTPUT"
+
+  step-1-add-reindex-subscriber:
+    name: 'Step 1: AddReindexSubscriber - ${{ matrix.config.site }}_${{ matrix.config.environment }}'
+    runs-on: ubuntu-latest
+    needs: [validate-config]
+    if: >-
+      inputs.EXECUTION_STAGE == 'All Stages (Sequential Pipeline)' ||
+      inputs.EXECUTION_STAGE == 'Step 1: AddReindexSubscriber'
+    env:
+      ENVIRONMENT: ${{ matrix.config.environment }}
+      SITE: ${{ matrix.config.site }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.validate-config.outputs.filtered_config) }}
+    steps:
+      - name: Simple test
+        run: |
+          echo "Step 1: AddReindexSubscriber"
+          echo "SITE: $SITE"
+          echo "ENVIRONMENT: $ENVIRONMENT"
+
+  approve-step-2:
+    name: 'Approve Step 2: AddReindexTrigger'
+    needs: [step-1-add-reindex-subscriber]
+    if: inputs.EXECUTION_STAGE == 'All Stages (Sequential Pipeline)'
+    runs-on: ubuntu-latest
+    environment: manual-approval
+    steps:
+      - name: Manual Approval Required
+        run: exit 0
+
+  step-2-add-reindex-trigger:
+    name: 'Step 2: AddReindexTrigger - ${{ matrix.config.site }}_${{ matrix.config.environment }}'
+    runs-on: ubuntu-latest
+    needs: [validate-config, approve-step-2]
+    if: >-
+      always() &&
+      ((inputs.EXECUTION_STAGE == 'All Stages (Sequential Pipeline)' && needs.approve-step-2.result == 'success') ||
+      (inputs.EXECUTION_STAGE == 'Step 2: AddReindexTrigger' && needs.approve-step-2.result == 'skipped'))
+    env:
+      ENVIRONMENT: ${{ matrix.config.environment }}
+      SITE: ${{ matrix.config.site }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.validate-config.outputs.filtered_config) }}
+    steps:
+      - name: Simple test
+        run: |
+          echo "Step 2: AddReindexTrigger"
+          echo "SITE: $SITE"
+          echo "ENVIRONMENT: $ENVIRONMENT"
+
+  approve-step-3:
+    name: 'Approve Step 3: UpdateReaderAlias'
+    needs: [step-2-add-reindex-trigger]
+    if: inputs.EXECUTION_STAGE == 'All Stages (Sequential Pipeline)'
+    runs-on: ubuntu-latest
+    environment: manual-approval
+    steps:
+      - name: Manual Approval Required
+        run: exit 0
+
+  step-3-update-reader-alias:
+    name: 'Step 3: UpdateReaderAlias - ${{ matrix.config.site }}_${{ matrix.config.environment }}'
+    runs-on: ubuntu-latest
+    needs: [validate-config, approve-step-3]
+    if: >-
+      always() &&
+      ((inputs.EXECUTION_STAGE == 'All Stages (Sequential Pipeline)' && needs.approve-step-3.result == 'success') ||
+      (inputs.EXECUTION_STAGE == 'Step 3: UpdateReaderAlias' && needs.approve-step-3.result == 'skipped'))
+    env:
+      ENVIRONMENT: ${{ matrix.config.environment }}
+      SITE: ${{ matrix.config.site }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.validate-config.outputs.filtered_config) }}
+    steps:
+      - name: Simple test
+        run: |
+          echo "Step 3: UpdateReaderAlias"
+          echo "SITE: $SITE"
+          echo "ENVIRONMENT: $ENVIRONMENT"
