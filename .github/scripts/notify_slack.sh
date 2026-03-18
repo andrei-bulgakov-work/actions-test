@@ -3,10 +3,10 @@
 set -euo pipefail
 
 # Send a Slack notification about a failed workflow
-# Usage: ./notify-slack.sh <webhook_url> <workflow_name> <workflow_conclusion> <triggered_workflow_run_id> [pr_number] [branch_name]
+# Usage: ./notify-slack.sh <webhook_url> <workflow_name> <workflow_conclusion> <triggered_workflow_run_id> [pr_number] [branch_name] [workflow_path]
 
 if [[ $# -lt 4 ]]; then
-    echo "Usage: $0 <webhook_url> <workflow_name> <workflow_conclusion> <triggered_workflow_run_id> [pr_number] [branch_name]"
+    echo "Usage: $0 <webhook_url> <workflow_name> <workflow_conclusion> <triggered_workflow_run_id> [pr_number] [branch_name] [workflow_path]"
     exit 1
 fi
 
@@ -16,6 +16,7 @@ CONCLUSION="$3"
 TRIGGERED_WORKFLOW_RUN_ID="$4"
 PR_NUMBER="${5:-}"
 BRANCH_NAME="${6:-}"
+WORKFLOW_PATH="${7:-}"
 
 # Validate webhook URL
 if [[ -z "$WEBHOOK_URL" ]]; then
@@ -26,22 +27,31 @@ fi
 # Determine title and icon based on conclusion
 case "${CONCLUSION,,}" in
 failure)
-    TITLE="Workflow failed: ${WORKFLOW_NAME}"
+    STATUS="failed"
     ICON="❌"
     ;;
 timed_out)
-    TITLE="Workflow timed out: ${WORKFLOW_NAME}"
+    STATUS="timed out"
     ICON="⌛"
     ;;
 cancelled)
-    TITLE="Workflow cancelled: ${WORKFLOW_NAME}"
+    STATUS="cancelled"
     ICON="🚫"
     ;;
 *)
-    TITLE="Workflow failed (${CONCLUSION}): ${WORKFLOW_NAME}"
+    STATUS="failed (${CONCLUSION})"
     ICON="🔴"
     ;;
 esac
+
+# Extract workflow filename from path (e.g., ".github/workflows/main.yaml" -> "main.yaml")
+WORKFLOW_FILENAME=$(basename "$WORKFLOW_PATH")
+
+# Construct workflow runs URL
+WORKFLOW_RUNS_URL="https://github.com/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_FILENAME}"
+
+# Build title with clickable workflow name
+TITLE="Workflow ${STATUS}"
 
 # Extract repository name from GITHUB_REPOSITORY (format: owner/repo)
 REPO_NAME="${GITHUB_REPOSITORY#*/}"
@@ -53,7 +63,9 @@ WORKFLOW_RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${TRIGGER
 WORKFLOW_RUN_ID="$TRIGGERED_WORKFLOW_RUN_ID"
 
 # Build the message text with repository and workflow run info
-MESSAGE_TEXT="${ICON} *${TITLE}*\nRepository: <${REPO_URL}|${REPO_NAME}>\nWorkflow Run: <${WORKFLOW_RUN_URL}|${WORKFLOW_RUN_ID}>"
+MESSAGE_TEXT="${ICON} *${TITLE}: <${WORKFLOW_RUNS_URL}|${WORKFLOW_NAME}>*"
+MESSAGE_TEXT="${MESSAGE_TEXT}\nRepository: <${REPO_URL}|${REPO_NAME}>"
+MESSAGE_TEXT="${MESSAGE_TEXT}\nWorkflow Run: <${WORKFLOW_RUN_URL}|${WORKFLOW_RUN_ID}>"
 
 # Add PR or Branch information if available
 if [[ -n "$PR_NUMBER" ]]; then
