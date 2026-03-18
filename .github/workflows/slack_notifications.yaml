@@ -1,0 +1,25 @@
+name: Notify on Workflow Failure
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline", "Model Pipeline"]
+    types:
+      - completed
+
+jobs:
+  notify-slack:
+    name: Notify Slack on Failure / Cancel / Timeout
+    runs-on: ubuntu-latest
+    if: contains(fromJSON('["failure", "timed_out", "cancelled"]'), github.event.workflow_run.conclusion)
+    env:
+      WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+      WORKFLOW_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+      WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_DATASCIENCE_NOTIFICATIONS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Send Slack Notification
+        working-directory: .github/scripts
+        run: bash ./notify_slack.sh "$SLACK_WEBHOOK_URL" "$WORKFLOW_NAME" "$WORKFLOW_CONCLUSION" "$WORKFLOW_RUN_ID"

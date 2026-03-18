@@ -1,0 +1,27 @@
+name: Model Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      ENVIRONMENT:
+        description: Target environment for model promotion
+        required: true
+        default: d1
+        type: choice
+        options:
+          - d1
+          - t1
+          - p1
+          - da
+          - ta
+          - pa
+
+permissions: {}
+
+jobs:
+  example:
+    name: Example Job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hello world
+        run: echo "Hello from Model Pipeline (model.yaml)"
