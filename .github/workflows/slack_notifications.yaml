@@ -25,4 +25,12 @@ jobs:
 
       - name: Send Slack Notification
         working-directory: .github/scripts
-        run: bash ./notify_slack.sh "$SLACK_WEBHOOK_URL" "$WORKFLOW_NAME" "$WORKFLOW_CONCLUSION" "$WORKFLOW_RUN_ID" "$PR_NUMBER" "$BRANCH_NAME" "$WORKFLOW_PATH"
+        run: |
+          bash ./notify_slack.sh \
+            --webhook="$SLACK_WEBHOOK_URL" \
+            --workflow-name="$WORKFLOW_NAME" \
+            --conclusion="$WORKFLOW_CONCLUSION" \
+            --run-id="$WORKFLOW_RUN_ID" \
+            --workflow-path="$WORKFLOW_PATH" \
+            --pr-number="$PR_NUMBER" \
+            --branch-name="$BRANCH_NAME"

@@ -3,24 +3,124 @@
 set -euo pipefail
 
 # Send a Slack notification about a failed workflow
-# Usage: ./notify-slack.sh <webhook_url> <workflow_name> <workflow_conclusion> <triggered_workflow_run_id> [pr_number] [branch_name] [workflow_path]
+# Usage: ./notify_slack.sh --webhook=URL --workflow-name=NAME --conclusion=CONCLUSION --run-id=RUN_ID --workflow-path=PATH [--pr-number=PR] [--branch-name=BRANCH]
 
-if [[ $# -lt 4 ]]; then
-    echo "Usage: $0 <webhook_url> <workflow_name> <workflow_conclusion> <triggered_workflow_run_id> [pr_number] [branch_name] [workflow_path]"
-    exit 1
-fi
+# Initialize variables
+WEBHOOK_URL=""
+WORKFLOW_NAME=""
+CONCLUSION=""
+TRIGGERED_WORKFLOW_RUN_ID=""
+WORKFLOW_PATH=""
+PR_NUMBER=""
+BRANCH_NAME=""
 
-WEBHOOK_URL="$1"
-WORKFLOW_NAME="$2"
-CONCLUSION="$3"
-TRIGGERED_WORKFLOW_RUN_ID="$4"
-PR_NUMBER="${5:-}"
-BRANCH_NAME="${6:-}"
-WORKFLOW_PATH="${7:-}"
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -w|--webhook)
+            WEBHOOK_URL="$2"
+            shift 2
+            ;;
+        --webhook=*)
+            WEBHOOK_URL="${1#*=}"
+            shift
+            ;;
+        -n|--workflow-name)
+            WORKFLOW_NAME="$2"
+            shift 2
+            ;;
+        --workflow-name=*)
+            WORKFLOW_NAME="${1#*=}"
+            shift
+            ;;
+        -c|--conclusion)
+            CONCLUSION="$2"
+            shift 2
+            ;;
+        --conclusion=*)
+            CONCLUSION="${1#*=}"
+            shift
+            ;;
+        -r|--run-id)
+            TRIGGERED_WORKFLOW_RUN_ID="$2"
+            shift 2
+            ;;
+        --run-id=*)
+            TRIGGERED_WORKFLOW_RUN_ID="${1#*=}"
+            shift
+            ;;
+        -p|--workflow-path)
+            WORKFLOW_PATH="$2"
+            shift 2
+            ;;
+        --workflow-path=*)
+            WORKFLOW_PATH="${1#*=}"
+            shift
+            ;;
+        --pr-number)
+            PR_NUMBER="$2"
+            shift 2
+            ;;
+        --pr-number=*)
+            PR_NUMBER="${1#*=}"
+            shift
+            ;;
+        -b|--branch-name)
+            BRANCH_NAME="$2"
+            shift 2
+            ;;
+        --branch-name=*)
+            BRANCH_NAME="${1#*=}"
+            shift
+            ;;
+        -h|--help)
+            cat << EOF
+Usage: $0 [OPTIONS]
 
-# Validate webhook URL
-if [[ -z "$WEBHOOK_URL" ]]; then
-    echo "Error: Webhook URL is empty"
+Required arguments:
+  -w, --webhook=URL                 Slack webhook URL
+  -n, --workflow-name=NAME          Workflow display name
+  -c, --conclusion=CONCLUSION       Workflow conclusion (failure/timed_out/cancelled)
+  -r, --run-id=RUN_ID              Workflow run ID
+  -p, --workflow-path=PATH          Path to workflow file
+
+Optional arguments:
+  --pr-number=NUMBER                Pull request number (if PR event)
+  -b, --branch-name=NAME            Branch name (if push event)
+  -h, --help                        Show this help message
+
+Examples:
+  $0 --webhook=https://hooks.slack.com/... --workflow-name="CI/CD Pipeline" \\
+     --conclusion=failure --run-id=12345 --workflow-path=.github/workflows/main.yaml
+
+  $0 -w https://hooks.slack.com/... -n "CI/CD Pipeline" -c failure \\
+     -r 12345 -p .github/workflows/main.yaml --pr-number=42
+EOF
+            exit 0
+            ;;
+        *)
+            echo "Error: Unknown option: $1" >&2
+            echo "Use --help for usage information" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Validate required arguments
+ERRORS=()
+[[ -z "$WEBHOOK_URL" ]] && ERRORS+=("--webhook is required")
+[[ -z "$WORKFLOW_NAME" ]] && ERRORS+=("--workflow-name is required")
+[[ -z "$CONCLUSION" ]] && ERRORS+=("--conclusion is required")
+[[ -z "$TRIGGERED_WORKFLOW_RUN_ID" ]] && ERRORS+=("--run-id is required")
+[[ -z "$WORKFLOW_PATH" ]] && ERRORS+=("--workflow-path is required")
+
+if [[ ${#ERRORS[@]} -gt 0 ]]; then
+    echo "Error: Missing required arguments:" >&2
+    for error in "${ERRORS[@]}"; do
+        echo "  - $error" >&2
+    done
+    echo "" >&2
+    echo "Use --help for usage information" >&2
     exit 1
 fi
 
@@ -110,8 +210,8 @@ if [[ "$RESPONSE_CODE" == "200" ]]; then
     echo "✓ Slack notification sent successfully"
     exit 0
 else
-    echo "✗ Failed to send Slack notification"
-    echo "HTTP Status: $RESPONSE_CODE"
-    echo "Response: $RESPONSE_BODY"
+    echo "✗ Failed to send Slack notification" >&2
+    echo "HTTP Status: $RESPONSE_CODE" >&2
+    echo "Response: $RESPONSE_BODY" >&2
     exit 1
 fi
