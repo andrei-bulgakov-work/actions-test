@@ -12,15 +12,17 @@ jobs:
   notify-slack:
     name: Notify Slack on Failure / Cancel / Timeout
     if: contains(fromJSON('["failure", "timed_out", "cancelled"]'), github.event.workflow_run.conclusion)
-    uses: andrei-bulgakov-work/slack-notification/.github/workflows/slack-notification.yaml@1
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
-    with:
-      RUNNER: ubuntu-latest
-      # slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL_DATASCIENCE_NOTIFICATIONS }}
-      workflow_name: ${{ github.event.workflow_run.name }}
-      workflow_conclusion: ${{ github.event.workflow_run.conclusion }}
-      workflow_run_id: ${{ github.event.workflow_run.id }}
-      workflow_path: ${{ github.event.workflow_run.path }}
-      pr_number: ${{ github.event.workflow_run.pull_requests[0].number }}
-      branch_name: ${{ github.event.workflow_run.head_branch }}
+      contents: read
+    steps:
+      - uses: andrei-bulgakov-work/slack-notification/actions/slack-notification@2
+        with:
+          RUNNER: ubuntu-latest
+          # slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL_DATASCIENCE_NOTIFICATIONS }}
+          workflow_name: ${{ github.event.workflow_run.name }}
+          workflow_conclusion: ${{ github.event.workflow_run.conclusion }}
+          workflow_run_id: ${{ github.event.workflow_run.id }}
+          workflow_path: ${{ github.event.workflow_run.path }}
+          pr_number: ${{ github.event.workflow_run.pull_requests[0].number }}
+          branch_name: ${{ github.event.workflow_run.head_branch }}
