@@ -11,10 +11,9 @@ permissions: {}
 jobs:
   notify-slack:
     name: Notify Slack on Failure / Cancel / Timeout
-    if: contains(fromJSON('["failure", "timed_out", "cancelled"]'), github.event.workflow_run.conclusion)
     runs-on: ubuntu-latest
     steps:
-      - uses: andrei-bulgakov-work/slack-notification/actions/slack-notification@v3
+      - uses: andrei-bulgakov-work/slack-notification@v4
         with:
           slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL_DATASCIENCE_NOTIFICATIONS }}
           workflow_name: ${{ github.event.workflow_run.name }}
